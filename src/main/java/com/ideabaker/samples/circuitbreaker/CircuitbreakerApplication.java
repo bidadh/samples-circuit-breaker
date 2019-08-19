@@ -2,6 +2,7 @@ package com.ideabaker.samples.circuitbreaker;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.timelimiter.TimeLimiterConfig;
+import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.Publisher;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.SpringApplication;
@@ -39,6 +40,7 @@ public class CircuitbreakerApplication {
 
 }
 
+@Slf4j
 @RestController
 class FailingController {
 	private final FailingService failingService;
@@ -53,16 +55,24 @@ class FailingController {
 	Publisher<String> greet(@RequestParam(required = false) String name) {
 		var results = failingService.greet(name); //cold
 
-		return this.circuitBreaker.run(results, throwable -> Mono.just("Hello world!"));
+		return this.circuitBreaker.run(results, throwable -> {
+            log.warn("error case! '{}'", throwable.getLocalizedMessage());
+		    return Mono.just("Hello world!");
+        });
 	}
 }
 
+@Slf4j
 @Service
 class FailingService {
 	Mono<String> greet(String name) {
 		var seconds = (long) (Math.random() * 10);
 		return Optional.ofNullable(name)
-				.map(n -> Mono.just("Hello " + n + "(in " + seconds + " seconds)" + "!"))
+				.map(n -> {
+                    String str = "Hello " + n + "(in " + seconds + " seconds)" + "!";
+                    log.info(str);
+                    return Mono.just(str);
+                })
 				.orElse(Mono.error(new IllegalArgumentException()))
 				.delayElement(Duration.ofSeconds(seconds));
 	}
